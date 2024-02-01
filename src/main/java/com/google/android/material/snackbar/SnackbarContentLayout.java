@@ -1,10 +1,12 @@
 package com.google.android.material.snackbar;
+import r.android.animation.TimeInterpolator;
 import r.android.view.View;
 import r.android.widget.Button;
 import r.android.widget.LinearLayout;
 import r.android.widget.TextView;
 import androidx.core.view.ViewCompat;
-public class SnackbarContentLayout extends LinearLayout {
+public class SnackbarContentLayout extends LinearLayout implements ContentViewCallback {
+  private final TimeInterpolator contentInterpolator=BaseTransientBottomBar.FAST_OUT_SLOW_IN_INTERPOLATOR;
   private int maxInlineActionWidth;
   protected void onMeasure(  int widthMeasureSpec,  int heightMeasureSpec){
     super.onMeasure(widthMeasureSpec,heightMeasureSpec);
@@ -49,6 +51,22 @@ public class SnackbarContentLayout extends LinearLayout {
     }
  else {
       view.setPadding(view.getPaddingLeft(),topPadding,view.getPaddingRight(),bottomPadding);
+    }
+  }
+  public void animateContentIn(  int delay,  int duration){
+    r.android.animation.ObjectAnimator o = r.android.animation.ObjectAnimator.ofFloat(getMessageView(),"alpha", 0f, 1f);o.setDuration(duration);o.setInterpolator(contentInterpolator);o.setStartDelay(delay);o.start();
+    //getMessageView().animate().alpha(1f).setDuration(duration).setInterpolator(contentInterpolator).setStartDelay(delay).start();
+    if (getActionView().getVisibility() == VISIBLE) {
+      r.android.animation.ObjectAnimator o1 = r.android.animation.ObjectAnimator.ofFloat(getActionView(),"alpha", 0f, 1f);o1.setDuration(duration);o.setInterpolator(contentInterpolator);o1.setStartDelay(delay);o1.start();
+      //getActionView().animate().alpha(1f).setDuration(duration).setInterpolator(contentInterpolator).setStartDelay(delay).start();
+    }
+  }
+  public void animateContentOut(  int delay,  int duration){
+    r.android.animation.ObjectAnimator o = r.android.animation.ObjectAnimator.ofFloat(getMessageView(),"alpha", 1f, 0f);o.setDuration(duration);o.setInterpolator(contentInterpolator);o.setStartDelay(delay);o.start();
+    //getMessageView().animate().alpha(0f).setDuration(duration).setInterpolator(contentInterpolator).setStartDelay(delay).start();
+    if (getActionView().getVisibility() == VISIBLE) {
+      r.android.animation.ObjectAnimator o1 = r.android.animation.ObjectAnimator.ofFloat(getActionView(),"alpha", 1f, 0f);o1.setDuration(duration);o.setInterpolator(contentInterpolator);o1.setStartDelay(delay);o1.start();
+      //getActionView().animate().alpha(0f).setDuration(duration).setInterpolator(contentInterpolator).setStartDelay(delay).start();
     }
   }
   public void setMaxInlineActionWidth(  int width){

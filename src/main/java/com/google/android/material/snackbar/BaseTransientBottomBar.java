@@ -1,4 +1,10 @@
 package com.google.android.material.snackbar;
+import r.android.animation.Animator;
+import r.android.animation.AnimatorListenerAdapter;
+import r.android.animation.AnimatorSet;
+import r.android.animation.TimeInterpolator;
+import r.android.animation.ValueAnimator;
+import r.android.animation.ValueAnimator.AnimatorUpdateListener;
 import r.android.content.Context;
 import r.android.graphics.Rect;
 import r.android.os.Build;
@@ -37,17 +43,22 @@ public abstract static class BaseCallback<B> {
   static final int DEFAULT_ANIMATION_FADE_DURATION=180;
   private static final int DEFAULT_ANIMATION_FADE_IN_DURATION=150;
   private static final int DEFAULT_ANIMATION_FADE_OUT_DURATION=75;
+  private static final float ANIMATION_SCALE_FROM_VALUE=0.8f;
   private final int animationFadeInDuration;
   private final int animationFadeOutDuration;
   private final int animationSlideDuration;
+  private final TimeInterpolator animationFadeInterpolator;
+  private final TimeInterpolator animationSlideInterpolator;
+  private final TimeInterpolator animationScaleInterpolator;
   static final Handler handler;
   static final int MSG_SHOW=0;
   static final int MSG_DISMISS=1;
-  private static final boolean USE_OFFSET_API=(Build.VERSION.SDK_INT >= VERSION_CODES.JELLY_BEAN) && (Build.VERSION.SDK_INT <= VERSION_CODES.KITKAT);
+  private static final boolean USE_OFFSET_API=true || (Build.VERSION.SDK_INT >= VERSION_CODES.JELLY_BEAN) && (Build.VERSION.SDK_INT <= VERSION_CODES.KITKAT);
   private static final String TAG=BaseTransientBottomBar.class.getSimpleName();
   private final ViewGroup targetParent;
   private final Context context;
   protected final SnackbarBaseLayout view;
+  private final com.google.android.material.snackbar.ContentViewCallback contentViewCallback;
   private int duration;
   private boolean gestureInsetBottomIgnored;
   private Anchor anchor;
@@ -113,6 +124,13 @@ public abstract static class BaseCallback<B> {
   }
   public int getDuration(){
     return duration;
+  }
+  public int getAnimationMode(){
+    return view.getAnimationMode();
+  }
+  public B setAnimationMode(  int animationMode){
+    view.setAnimationMode(animationMode);
+    return (B)this;
   }
   public View getAnchorView(){
     return anchor == null ? null : anchor.getAnchorView();
@@ -222,6 +240,157 @@ targetParent.getLocationOnScreen(targetParentLocation);
 int targetParentAbsoluteYBottom=targetParentLocation[1] + targetParent.getHeight();
 return targetParentAbsoluteYBottom - anchorViewAbsoluteYTop;
 }
+void animateViewIn(){
+view.post(new Runnable(){
+public void run(){
+if (view == null) {
+  return;
+}
+if (view.getParent() != null) {
+  view.setVisibility(View.VISIBLE);
+}
+if (view.getAnimationMode() == ANIMATION_MODE_FADE) {
+  startFadeInAnimation();
+}
+ else {
+  startSlideInAnimation();
+}
+}
+}
+);
+}
+private void animateViewOut(int event){
+if (view.getAnimationMode() == ANIMATION_MODE_FADE) {
+startFadeOutAnimation(event);
+}
+ else {
+startSlideOutAnimation(event);
+}
+}
+private void startFadeInAnimation(){
+ValueAnimator alphaAnimator=getAlphaAnimator(0,1);
+ValueAnimator scaleAnimator=getScaleAnimator(ANIMATION_SCALE_FROM_VALUE,1);
+AnimatorSet animatorSet=new AnimatorSet();
+animatorSet.playTogether(alphaAnimator,scaleAnimator);
+animatorSet.setDuration(animationFadeInDuration);
+animatorSet.addListener(new AnimatorListenerAdapter(){
+public void onAnimationEnd(Animator animator){
+onViewShown();
+}
+}
+);
+animatorSet.start();
+}
+private void startFadeOutAnimation(final int event){
+ValueAnimator animator=getAlphaAnimator(1,0);
+animator.setDuration(animationFadeOutDuration);
+animator.addListener(new AnimatorListenerAdapter(){
+public void onAnimationEnd(Animator animator){
+onViewHidden(event);
+}
+}
+);
+animator.start();
+}
+private ValueAnimator getAlphaAnimator(float... alphaValues){
+ValueAnimator animator=ValueAnimator.ofFloat(alphaValues);
+animator.setInterpolator(animationFadeInterpolator);
+animator.addUpdateListener(new AnimatorUpdateListener(){
+public void onAnimationUpdate(ValueAnimator valueAnimator){
+view.setAlpha((Float)valueAnimator.getAnimatedValue());
+}
+}
+);
+return animator;
+}
+private ValueAnimator getScaleAnimator(float... scaleValues){
+ValueAnimator animator=ValueAnimator.ofFloat(scaleValues);
+animator.setInterpolator(animationScaleInterpolator);
+animator.addUpdateListener(new AnimatorUpdateListener(){
+public void onAnimationUpdate(ValueAnimator valueAnimator){
+float scale=(float)valueAnimator.getAnimatedValue();
+view.setScaleX(scale);
+view.setScaleY(scale);
+}
+}
+);
+return animator;
+}
+private void startSlideInAnimation(){
+final int translationYBottom=getTranslationYBottom();
+if (USE_OFFSET_API) {
+ViewCompat.offsetTopAndBottom(view,translationYBottom);
+}
+ else {
+view.setTranslationY(translationYBottom);
+}
+ValueAnimator animator=new ValueAnimator();
+animator.setIntValues(translationYBottom,0);
+animator.setInterpolator(animationSlideInterpolator);
+animator.setDuration(animationSlideDuration);
+animator.addListener(new AnimatorListenerAdapter(){
+public void onAnimationStart(Animator animator){
+contentViewCallback.animateContentIn(animationSlideDuration - animationFadeInDuration,animationFadeInDuration);
+}
+public void onAnimationEnd(Animator animator){
+onViewShown();
+}
+}
+);
+animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener(){
+private int previousAnimatedIntValue=translationYBottom;
+public void onAnimationUpdate(ValueAnimator animator){
+int currentAnimatedIntValue=(int)animator.getAnimatedValue();
+if (USE_OFFSET_API) {
+  ViewCompat.offsetTopAndBottom(view,currentAnimatedIntValue - previousAnimatedIntValue);
+}
+ else {
+  view.setTranslationY(currentAnimatedIntValue);
+}
+previousAnimatedIntValue=currentAnimatedIntValue;onChildViewsChanged(view);
+}
+}
+);
+animator.start();
+}
+private void startSlideOutAnimation(final int event){
+ValueAnimator animator=new ValueAnimator();
+animator.setIntValues(0,getTranslationYBottom());
+animator.setInterpolator(animationSlideInterpolator);
+animator.setDuration(animationSlideDuration);
+animator.addListener(new AnimatorListenerAdapter(){
+public void onAnimationStart(Animator animator){
+contentViewCallback.animateContentOut(0,animationFadeOutDuration);
+}
+public void onAnimationEnd(Animator animator){
+onViewHidden(event);
+}
+}
+);
+animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener(){
+private int previousAnimatedIntValue=0;
+public void onAnimationUpdate(ValueAnimator animator){
+int currentAnimatedIntValue=(int)animator.getAnimatedValue();
+if (USE_OFFSET_API) {
+  ViewCompat.offsetTopAndBottom(view,currentAnimatedIntValue - previousAnimatedIntValue);
+}
+ else {
+  view.setTranslationY(currentAnimatedIntValue);
+}
+previousAnimatedIntValue=currentAnimatedIntValue;onChildViewsChanged(view);
+}
+}
+);
+animator.start();
+}
+private int getTranslationYBottom(){
+int translationY=view.getHeight();
+LayoutParams layoutParams=view.getLayoutParams();
+if (layoutParams instanceof MarginLayoutParams) {
+translationY+=((MarginLayoutParams)layoutParams).bottomMargin;
+}
+return translationY;
+}
 final void hideView(int event){
 if (shouldAnimate() && view.getVisibility() == View.VISIBLE) {
 animateViewOut(event);
@@ -243,6 +412,12 @@ widthMeasureSpec=MeasureSpec.makeMeasureSpec(maxWidth,MeasureSpec.EXACTLY);
 super.onMeasure(widthMeasureSpec,heightMeasureSpec);
 }
 }
+int getAnimationMode(){
+return animationMode;
+}
+void setAnimationMode(int animationMode){
+this.animationMode=animationMode;
+}
 void addToTargetParent(ViewGroup targetParent){
 addingToTargetParent=true;
 targetParent.addView(this);
@@ -260,6 +435,14 @@ View getAnchorView(){
 return anchorView.get();
 }
 }
+public static final TimeInterpolator LINEAR_INTERPOLATOR=new r.android.view.animation.LinearInterpolator();
+public static final TimeInterpolator FAST_OUT_SLOW_IN_INTERPOLATOR=new androidx.interpolator.view.animation.FastOutSlowInInterpolator();
+public static final TimeInterpolator FAST_OUT_LINEAR_IN_INTERPOLATOR=new androidx.interpolator.view.animation.FastOutLinearInInterpolator();
+public static final TimeInterpolator LINEAR_OUT_SLOW_IN_INTERPOLATOR=new androidx.interpolator.view.animation.LinearOutSlowInInterpolator();
+public static final TimeInterpolator DECELERATE_INTERPOLATOR=new r.android.view.animation.DecelerateInterpolator();
+private static final TimeInterpolator DEFAULT_ANIMATION_FADE_INTERPOLATOR=LINEAR_INTERPOLATOR;
+private static final TimeInterpolator DEFAULT_ANIMATION_SCALE_INTERPOLATOR=LINEAR_OUT_SLOW_IN_INTERPOLATOR;
+private static final TimeInterpolator DEFAULT_ANIMATION_SLIDE_INTERPOLATOR=FAST_OUT_SLOW_IN_INTERPOLATOR;
 static{
 handler=new Handler(r.android.os.Looper.getMainLooper(),new Handler.Callback(){
 @Override public boolean handleMessage(r.android.os.Message message){
@@ -313,19 +496,19 @@ throw new IllegalArgumentException("Transient bottom bar must have non-null pare
 this.view=view;
 targetParent=parent;
 this.context=context;
-animationFadeInDuration=0;
-animationFadeOutDuration=0;
-animationSlideDuration=0;
+animationFadeInDuration=DEFAULT_ANIMATION_FADE_IN_DURATION;
+animationFadeOutDuration=DEFAULT_ANIMATION_FADE_OUT_DURATION;
+animationSlideDuration=DEFAULT_SLIDE_ANIMATION_DURATION;
+animationFadeInterpolator=DEFAULT_ANIMATION_FADE_INTERPOLATOR;
+animationSlideInterpolator=DEFAULT_ANIMATION_SLIDE_INTERPOLATOR;
+animationScaleInterpolator=DEFAULT_ANIMATION_SCALE_INTERPOLATOR;
+contentViewCallback=(SnackbarContentLayout)view.getChildAt(0);
 }
 public int getScreenHeight(){
 return com.ashera.widget.PluginInvoker.getScreenHeight();
 }
-public void animateViewIn(){
-}
-public void animateViewOut(int event){
-}
 boolean shouldAnimate(){
-return false;
+return true;
 }
 private void onViewHidden(int event){
 SnackbarManager.getInstance().onDismissed(managerCallback);
@@ -345,6 +528,15 @@ SnackbarManager.getInstance().onShown(managerCallback);
 if (this.view != null) {
 this.view.requestLayout();
 this.view.remeasure();
+}
+}
+private void onChildViewsChanged(View view){
+View parent=(View)view.getParent();
+while (parent != null) {
+if (parent instanceof CoordinatorLayout) {
+((CoordinatorLayout)parent).onChildViewsChanged(0);
+}
+parent=(View)parent.getParent();
 }
 }
 }

@@ -35,7 +35,7 @@ public static class Callback extends BaseCallback<Snackbar> {
     }
     //final LayoutInflater inflater=LayoutInflater.from(context);
     //final SnackbarContentLayout content=(SnackbarContentLayout)inflater.inflate(hasSnackbarContentStyleAttrs(context) ? R.layout.mtrl_layout_snackbar_include : R.layout.design_layout_snackbar_include,parent,false);
-    final SnackbarBaseLayout content=(SnackbarBaseLayout) parent.getChildAt(0).inflateView("@layout/my_design_layout_snackbar");if (content.getLayoutParams() instanceof androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams) {((androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams)content.getLayoutParams()).gravity = r.android.view.Gravity.BOTTOM;}final Snackbar snackbar=new Snackbar(context,parent,content);
+    final SnackbarBaseLayout content=(SnackbarBaseLayout) parent.getChildAt(0).inflateView("@layout/my_design_layout_snackbar");if (content.getLayoutParams() instanceof androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams) {((androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams)content.getLayoutParams()).gravity = r.android.view.Gravity.BOTTOM;((androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams)content.getLayoutParams()).insetEdge = r.android.view.Gravity.BOTTOM;}final Snackbar snackbar=new Snackbar(context,parent,content);
     snackbar.setText(text);
     snackbar.setDuration(duration);
     return snackbar;
